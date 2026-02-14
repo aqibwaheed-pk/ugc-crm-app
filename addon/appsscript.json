@@ -1,0 +1,21 @@
+{
+  "timeZone": "Asia/Karachi",
+  "dependencies": {
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.addons.execute",
+    "https://www.googleapis.com/auth/gmail.readonly"
+  ],
+  "gmail": {
+    "name": "UGC CRM Tracker",
+    "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/receipt_black_24dp.png",
+    "contextualTriggers": [{
+      "unconditional": {},
+      "onTriggerFunction": "buildAddOn"
+    }],
+    "primaryColor": "#4285F4",
+    "secondaryColor": "#4285F4"
+  }
+}
