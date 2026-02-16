@@ -10,6 +10,7 @@ function buildAddOn(e) {
   var message = GmailApp.getMessageById(messageId);
   var subject = message.getSubject();
   var sender = message.getFrom();
+  var body = message.getBody(); // Get the email body
 
   // 2. UI (Card) Banana - Google CardService use karte hue
   var card = CardService.newCardBuilder();
@@ -22,7 +23,8 @@ function buildAddOn(e) {
   // Section 2: Email Info Display karna
   var section = CardService.newCardSection()
     .addWidget(CardService.newTextParagraph().setText("<b>Sender:</b> " + sender))
-    .addWidget(CardService.newTextParagraph().setText("<b>Subject:</b> " + subject));
+    .addWidget(CardService.newTextParagraph().setText("<b>Subject:</b> " + subject))
+    .addWidget(CardService.newTextParagraph().setText("<b>Body:</b> " + body)); // Display the email body
 
   // Section 3: Button (Future mein ye 'Save Deal' karega)
   var button = CardService.newTextButton()
