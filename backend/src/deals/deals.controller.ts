@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { DealsService } from './deals.service';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
+import { AuthGuard } from '@nestjs/passport'; // <-- Add this
 
 @Controller('deals')
+@UseGuards(AuthGuard('jwt')) // 🚨 YEH LINE SB SE ZAROORI HAI (Poora Controller Lock)
 export class DealsController {
   constructor(private readonly dealsService: DealsService) {}
 
