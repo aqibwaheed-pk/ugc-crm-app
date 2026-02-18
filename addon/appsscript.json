@@ -6,16 +6,20 @@
   "runtimeVersion": "V8",
   "oauthScopes": [
     "https://www.googleapis.com/auth/gmail.addons.execute",
-    "https://www.googleapis.com/auth/gmail.readonly"
+    "https://www.googleapis.com/auth/gmail.addons.current.message.readonly", 
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "openid"
   ],
   "gmail": {
-    "name": "UGC CRM Tracker",
+    "name": "SponsoAI",
     "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/receipt_black_24dp.png",
     "contextualTriggers": [{
       "unconditional": {},
       "onTriggerFunction": "buildAddOn"
     }],
-    "primaryColor": "#4285F4",
-    "secondaryColor": "#4285F4"
+    "primaryColor": "#0F172A",
+    "secondaryColor": "#4F46E5"
   }
 }

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { supabase } from '../supabase'
+import Login from './views/Login.vue' // Login Page Import
+import axios from 'axios'
 import { Trash2, ArrowRight, ArrowLeft, Play, CheckCircle, RotateCw, Save } from 'lucide-vue-next'
 
 // Shadcn UI Components
@@ -12,41 +13,112 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
+// State Variables
+const isAuthenticated = ref(false)
 const deals = ref([])
 const loading = ref(true)
 const showModal = ref(false)
 const editingDeal = ref({}) 
 
-onMounted(async () => {
-  await fetchDeals()
+// --- API SETUP (Axios) ---
+const api = axios.create({
+  baseURL: 'http://localhost:3000' // Backend URL
+});
+
+// Request Interceptor (Token lagane ke liye)
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('sponso_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// --- AUTH LOGIC ---
+onMounted(() => {
+  const token = localStorage.getItem('sponso_token');
+  if (token) {
+    isAuthenticated.value = true;
+    fetchDeals();
+  } else {
+    loading.value = false; // Stop loading if no token
+  }
 })
 
-async function fetchDeals() {
-  loading.value = true
-  let { data, error } = await supabase
-    .from('deals')
-    .select('*')
-    .order('created_at', { ascending: false })
-  
-  if (error) console.error(error)
-  else deals.value = data
-  loading.value = false
+function handleLoginSuccess(user) {
+  isAuthenticated.value = true;
+  fetchDeals();
 }
 
-const pendingDeals = computed(() => deals.value.filter(d => d.status === 'Pending'))
-const activeDeals = computed(() => deals.value.filter(d => d.status === 'In Progress'))
-const doneDeals = computed(() => deals.value.filter(d => d.status === 'Done'))
+// --- DATA LOGIC ---
 
+// 1. Fetch All Deals
+async function fetchDeals() {
+  loading.value = true;
+  try {
+    const res = await api.post('/deals');
+    // Backend se data 'created_at' sort hoke aana chahiye, ya yahan sort karein
+    deals.value = res.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  } catch (e) {
+    console.error("Fetch error:", e);
+    if(e.response && e.response.status === 401) {
+      alert("Session expired. Please login again.");
+      localStorage.removeItem('sponso_token');
+      isAuthenticated.value = false;
+    }
+  } finally {
+    loading.value = false;
+  }
+}
+
+// 2. Update Status (Pending -> In Progress -> Done)
 async function updateStatus(id, newStatus) {
+  // Optimistic Update (UI pe foran change karo)
   const dealIndex = deals.value.findIndex(d => d.id === id)
   if (dealIndex !== -1) deals.value[dealIndex].status = newStatus
-  await supabase.from('deals').update({ status: newStatus }).eq('id', id)
+
+  // Backend Call
+  try {
+    await api.patch(`/deals/${id}`, { status: newStatus })
+  } catch (error) {
+    console.error("Status update failed:", error)
+    fetchDeals(); // Error aye to revert karne ke liye refresh
+  }
 }
 
+// 3. Delete Deal
 async function deleteDeal(id) {
   if(!confirm("Delete this deal permanently?")) return;
+  
+  // UI Update
   deals.value = deals.value.filter(d => d.id !== id)
-  await supabase.from('deals').delete().eq('id', id)
+  
+  // Backend Call
+  try {
+    await api.delete(`/deals/${id}`)
+  } catch (error) {
+    console.error("Delete failed:", error)
+  }
+}
+
+// 4. Save Changes (Edit Modal)
+async function saveDeal() {
+  const { id, brand_name, amount, deadline, description } = editingDeal.value
+  
+  // UI Update
+  const index = deals.value.findIndex(d => d.id === id)
+  if (index !== -1) {
+    deals.value[index] = { ...deals.value[index], brand_name, amount, deadline, description }
+  }
+
+  // Backend Call
+  try {
+    await api.patch(`/deals/${id}`, { brand_name, amount, deadline, description })
+    showModal.value = false
+  } catch (error) {
+    console.error("Save failed:", error)
+    alert("Failed to save changes")
+  }
 }
 
 function openEditModal(deal) {
@@ -54,25 +126,18 @@ function openEditModal(deal) {
   showModal.value = true
 }
 
-async function saveDeal() {
-  const { id, brand_name, amount, deadline, description } = editingDeal.value
-  
-  const index = deals.value.findIndex(d => d.id === id)
-  if (index !== -1) {
-    deals.value[index] = { ...deals.value[index], brand_name, amount, deadline, description }
-  }
+// Computed Properties (Kanban Columns)
+const pendingDeals = computed(() => deals.value.filter(d => d.status === 'Pending'))
+const activeDeals = computed(() => deals.value.filter(d => d.status === 'In Progress'))
+const doneDeals = computed(() => deals.value.filter(d => d.status === 'Done'))
 
-  await supabase
-    .from('deals')
-    .update({ brand_name, amount, deadline, description })
-    .eq('id', id)
-
-  showModal.value = false
-}
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 p-8 font-sans">
+  
+  <Login v-if="!isAuthenticated" @login-success="handleLoginSuccess" />
+
+  <div v-else class="min-h-screen bg-slate-50 p-8 font-sans">
     
     <header class="max-w-7xl mx-auto flex justify-between items-center mb-10">
       <div class="flex items-center gap-2">
@@ -180,7 +245,7 @@ async function saveDeal() {
 
     </div>
 
-    <Dialog v-model="showModal">
+    <Dialog v-model:open="showModal">
       <DialogContent class="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Deal Details</DialogTitle>
