@@ -9,13 +9,17 @@ const handleLoginSuccess = async (response) => {
   
   try {
     // 1. Backend ko bhejo verify karne ke liye
-    const res = await axios.post('http://localhost:3000/auth/google-login', {
+    const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/auth/google-login`, {
       token: credential
+    }, {
+      withCredentials: true,
     });
 
-    // 2. Apna App Token save karo
+    // 2. Apna App Token save karo (if not using httpOnly cookies)
     const myAppToken = res.data.accessToken;
-    localStorage.setItem('sponso_token', myAppToken);
+    if (myAppToken) {
+      localStorage.setItem('sponso_token', myAppToken);
+    }
     
     // 3. App ko batao ke login ho gaya
     emit('login-success', res.data.user);

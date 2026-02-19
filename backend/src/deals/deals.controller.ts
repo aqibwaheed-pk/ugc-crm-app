@@ -1,6 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Headers, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { DealsService } from './deals.service';
 import { AuthGuard } from '@nestjs/passport';
+import { CreateDealDto } from './dto/create-deal.dto';
+import { UpdateDealDto } from './dto/update-deal.dto';
 
 @Controller('deals')
 export class DealsController {
@@ -10,15 +12,15 @@ export class DealsController {
   // 🟢 NAYA RASTA: SIRF GMAIL ADD-ON KE LIYE (WITH API KEY)
   // ==========================================
   @Post('addon')
-  async createFromAddon(@Headers('x-api-key') apiKey: string, @Body() body: any) {
+  async createFromAddon(@Headers('x-api-key') apiKey: string, @Body() body: CreateDealDto) {
     // 1. Secret Password Check karein
-    if (apiKey !== 'sponso_addon_secret_123') {
+    if (apiKey !== process.env.ADDON_SECRET_KEY) {
       throw new UnauthorizedException('Invalid Add-on Password!');
     }
     
     // 2. Check karein ke Add-on ne email bheji hai ya nahi
     if (!body.userEmail) {
-      throw new UnauthorizedException('User email is missing!');
+      throw new BadRequestException('User email is missing!');
     }
     
     // 3. Data save karein
@@ -30,7 +32,7 @@ export class DealsController {
   // ==========================================
   @UseGuards(AuthGuard('jwt'))
   @Post()
-  create(@Body() createDealDto: any, @Request() req: any) {
+  create(@Body() createDealDto: CreateDealDto, @Request() req: any) {
     const userEmail = req.user.email; 
     return this.dealsService.create(createDealDto, userEmail);
   }
@@ -44,13 +46,23 @@ export class DealsController {
 
   @UseGuards(AuthGuard('jwt'))
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateData: any, @Request() req: any) {
+  async update(@Param('id') id: string, @Body() updateData: UpdateDealDto, @Request() req: any) {
+    // Verify user owns this deal before updating
+    const deal = await this.dealsService.findById(+id);
+    if (!deal || deal.user_email !== req.user.email) {
+      throw new ForbiddenException('You do not own this deal');
+    }
     return this.dealsService.update(+id, updateData, req.user.email);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
-  remove(@Param('id') id: string, @Request() req: any) {
+  async remove(@Param('id') id: string, @Request() req: any) {
+    // Verify user owns this deal before deleting
+    const deal = await this.dealsService.findById(+id);
+    if (!deal || deal.user_email !== req.user.email) {
+      throw new ForbiddenException('You do not own this deal');
+    }
     return this.dealsService.remove(+id, req.user.email);
   }
 }

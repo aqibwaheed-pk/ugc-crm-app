@@ -1,6 +1,6 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -8,11 +8,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: "sponso_secret_key_12345",
+      secretOrKey: process.env.JWT_SECRET || 'fallback-secret-change-immediately',
     });
   }
 
   async validate(payload: any) {
-    return { userId: payload.sub, email: payload.email }; // Ye data ab 'req.user' mein available hoga
+    if (!payload.sub || !payload.email) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
+    return { userId: payload.sub, email: payload.email };
   }
 }

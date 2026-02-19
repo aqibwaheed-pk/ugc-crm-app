@@ -22,11 +22,18 @@ const editingDeal = ref({})
 
 // --- API SETUP (Axios) ---
 const api = axios.create({
-  baseURL: 'http://localhost:3000' // Backend URL
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  withCredentials: true, // Enable for httpOnly cookies
 });
 
 // Request Interceptor (Token lagane ke liye)
 api.interceptors.request.use(config => {
+  // For CSRF protection - add token from meta tag if present
+  const csrfToken = document.head.querySelector('meta[name="csrf-token"]')?.content;
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken;
+  }
+  // Keep localStorage fallback for JWT Bearer token if needed
   const token = localStorage.getItem('sponso_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

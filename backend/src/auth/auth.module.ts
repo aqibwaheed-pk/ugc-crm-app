@@ -9,7 +9,7 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: "sponso_secret_key_12345", // ✅ ENV se read karega
+      secret: process.env.JWT_SECRET || 'fallback-secret-change-immediately',
       signOptions: { expiresIn: '7d' },
     }),
   ],

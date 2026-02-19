@@ -9,7 +9,7 @@ import router from './router'
 const app = createApp(App)
 
 app.use(GoogleSignInPlugin, {
-  clientId: '556524231818-vnsaf1n3pq0c3m6b61eog5jot8m64k16.apps.googleusercontent.com', // <-- Yahan ID dalein
+  clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '556524231818-vnsaf1n3pq0c3m6b61eog5jot8m64k16.apps.googleusercontent.com',
 })
 
 app.use(createPinia())
