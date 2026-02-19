@@ -11,6 +11,7 @@ function buildAddOn(e) {
   var message = GmailApp.getMessageById(messageId);
   var subject = message.getSubject();
   var sender = message.getFrom();
+  
   // UI ke liye hum thora sa body text dikhate hain (cleaner look ke liye)
   var bodyPreview = message.getPlainBody().substring(0, 100) + "..."; 
 
@@ -19,7 +20,7 @@ function buildAddOn(e) {
 
   // Header
   var header = CardService.newCardHeader()
-    .setTitle("UGC CRM Tracker")
+    .setTitle("SponsoAI")
     .setSubtitle("Deal Details");
 
   // Email Info Section
@@ -47,34 +48,41 @@ function buildAddOn(e) {
  * 2. ACTION FUNCTION (BACKEND CONNECT)
  * Jab user button press karega to ye function chalega.
  */
+/**
+ * 2. ACTION FUNCTION (BACKEND CONNECT)
+ */
 function createDeal(e) {
-  // --- 1. Email Content Dobara Uthana (Processing ke liye) ---
+  // --- 1. Email Content Uthana ---
   var accessToken = e.messageMetadata.accessToken;
   var messageId = e.messageMetadata.messageId;
   GmailApp.setCurrentMessageAccessToken(accessToken);
    
   var message = GmailApp.getMessageById(messageId);
   var subject = message.getSubject();
-  var body = message.getPlainBody(); // HTML nahi, sirf text chahiye AI ke liye
+  var body = message.getPlainBody(); 
   var sender = message.getFrom();
+
+  // ✅ USER KI EMAIL DIRECT GMAIL SE NIKALEIN (100% working)
+  var userEmail = Session.getEffectiveUser().getEmail();
 
   // --- 2. Payload Tayyar karna ---
   var payload = {
     subject: subject,
     body: body,
-    sender: sender
+    sender: sender,
+    userEmail: userEmail // 👈 Backend ko pata chalega data kis ka hai
   };
 
-  // --- 3. Backend (NestJS + AI) ko Bhejna ---
-  
-  // 🔴 IMPORTANT: Niche apna Ngrok Link update karein!
-  // Example: "https://a1b2-c3d4.ngrok-free.app/deals"
-  var url = "https://4aab-182-176-163-235.ngrok-free.app/deals"; 
+  // 🔴 FIX: URL ke shuru se space (khali jagah) hata di gayi hai!
+  var url = "https://a78d-182-176-163-235.ngrok-free.app/deals/addon"; 
    
   var options = {
     method: "post",
     contentType: "application/json",
     payload: JSON.stringify(payload),
+    headers: {
+      'x-api-key': 'sponso_addon_secret_123' // 👈 Simple Secret Password
+    },
     muteHttpExceptions: true
   };
    

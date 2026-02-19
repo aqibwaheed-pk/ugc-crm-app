@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import Login from './views/Login.vue' // Login Page Import
 import axios from 'axios'
-import { Trash2, ArrowRight, ArrowLeft, Play, CheckCircle, RotateCw, Save } from 'lucide-vue-next'
+import { Trash2, ArrowRight, ArrowLeft, Play, CheckCircle, RotateCw, Save, LogOut } from 'lucide-vue-next'
 
 // Shadcn UI Components
 import { Button } from '@/components/ui/button'
@@ -50,21 +50,25 @@ function handleLoginSuccess(user) {
   fetchDeals();
 }
 
+function handleLogout() {
+  localStorage.removeItem('sponso_token');
+  isAuthenticated.value = false;
+  deals.value = []; // Data clear kar do memory se
+}
+
 // --- DATA LOGIC ---
 
 // 1. Fetch All Deals
 async function fetchDeals() {
   loading.value = true;
   try {
-    const res = await api.post('/deals');
-    // Backend se data 'created_at' sort hoke aana chahiye, ya yahan sort karein
+    const res = await api.get('/deals'); // ✅ GET call for fetching data
     deals.value = res.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   } catch (e) {
     console.error("Fetch error:", e);
     if(e.response && e.response.status === 401) {
       alert("Session expired. Please login again.");
-      localStorage.removeItem('sponso_token');
-      isAuthenticated.value = false;
+      handleLogout();
     }
   } finally {
     loading.value = false;
@@ -149,10 +153,15 @@ const doneDeals = computed(() => deals.value.filter(d => d.status === 'Done'))
         </h1>
         <Badge variant="secondary" class="ml-2 text-xs">BETA</Badge>
       </div>
-      <Button @click="fetchDeals" variant="outline" class="gap-2">
-        <RotateCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
-        Refresh Board
-      </Button>
+      <div class="flex items-center gap-3">
+        <Button @click="handleLogout" variant="ghost" class="text-slate-500 hover:text-red-600">
+          <LogOut class="w-4 h-4 mr-2" /> Logout
+        </Button>
+        <Button @click="fetchDeals" variant="outline" class="gap-2">
+          <RotateCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
+          Refresh Board
+        </Button>
+      </div>
     </header>
 
     <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">

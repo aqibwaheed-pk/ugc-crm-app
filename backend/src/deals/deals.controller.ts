@@ -1,37 +1,56 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Headers, UnauthorizedException } from '@nestjs/common';
 import { DealsService } from './deals.service';
-import { CreateDealDto } from './dto/create-deal.dto';
-import { UpdateDealDto } from './dto/update-deal.dto';
-import { AuthGuard } from '@nestjs/passport'; // <-- Add this
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('deals')
-@UseGuards(AuthGuard('jwt')) // 🚨 YEH LINE SB SE ZAROORI HAI (Poora Controller Lock)
 export class DealsController {
   constructor(private readonly dealsService: DealsService) {}
 
-@Post()
-  create(@Body() createDealDto: any) {
-    console.log('Data received from Gmail:', createDealDto);
-    return this.dealsService.create(createDealDto);
+  // ==========================================
+  // 🟢 NAYA RASTA: SIRF GMAIL ADD-ON KE LIYE (WITH API KEY)
+  // ==========================================
+  @Post('addon')
+  async createFromAddon(@Headers('x-api-key') apiKey: string, @Body() body: any) {
+    // 1. Secret Password Check karein
+    if (apiKey !== 'sponso_addon_secret_123') {
+      throw new UnauthorizedException('Invalid Add-on Password!');
+    }
+    
+    // 2. Check karein ke Add-on ne email bheji hai ya nahi
+    if (!body.userEmail) {
+      throw new UnauthorizedException('User email is missing!');
+    }
+    
+    // 3. Data save karein
+    return this.dealsService.create(body, body.userEmail);
   }
 
-  // @Get()
-  // findAll() {
-  //   return this.dealsService.findAll();
-  // }
+  // ==========================================
+  // 🔒 PURANAY RASTAY: WEB APP KE LIYE (JWT PROTECTED)
+  // ==========================================
+  @UseGuards(AuthGuard('jwt'))
+  @Post()
+  create(@Body() createDealDto: any, @Request() req: any) {
+    const userEmail = req.user.email; 
+    return this.dealsService.create(createDealDto, userEmail);
+  }
 
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.dealsService.findOne(+id);
-  // }
+  @UseGuards(AuthGuard('jwt'))
+  @Get()
+  findAll(@Request() req: any) {
+    const userEmail = req.user.email;
+    return this.dealsService.findAll(userEmail); 
+  }
 
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updateDealDto: UpdateDealDto) {
-  //   return this.dealsService.update(+id, updateDealDto);
-  // }
+  @UseGuards(AuthGuard('jwt'))
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() updateData: any, @Request() req: any) {
+    return this.dealsService.update(+id, updateData, req.user.email);
+  }
 
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.dealsService.remove(+id);
-  // }
+  @UseGuards(AuthGuard('jwt'))
+  @Delete(':id')
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.dealsService.remove(+id, req.user.email);
+  }
 }
