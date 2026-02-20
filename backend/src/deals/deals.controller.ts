@@ -1,20 +1,42 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Headers, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request, Headers, UnauthorizedException, ForbiddenException, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { DealsService } from './deals.service';
 import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import { CreateDealDto } from './dto/create-deal.dto';
+import { CreateAddonDealDto } from './dto/create-addon-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 
 @Controller('deals')
 export class DealsController {
-  constructor(private readonly dealsService: DealsService) {}
+  private readonly logger = new Logger(DealsController.name);
+
+  constructor(
+    private readonly dealsService: DealsService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // ==========================================
   // 🟢 NAYA RASTA: SIRF GMAIL ADD-ON KE LIYE (WITH API KEY)
   // ==========================================
   @Post('addon')
-  async createFromAddon(@Headers('x-api-key') apiKey: string, @Body() body: CreateDealDto) {
+  async createFromAddon(@Headers('x-api-key') apiKey: string, @Body() body: CreateAddonDealDto) {
+    const configuredAddonSecret = this.configService.get<string>('ADDON_SECRET_KEY');
+    const normalizedApiKey = (apiKey || '').trim();
+    const normalizedSecret = (configuredAddonSecret || '').trim();
+
+    if (!normalizedSecret) {
+      this.logger.error('ADDON_SECRET_KEY is not configured');
+      throw new InternalServerErrorException('Add-on secret is not configured');
+    }
+
+    if (!normalizedApiKey) {
+      this.logger.warn('Missing x-api-key header in /deals/addon request');
+      throw new UnauthorizedException('Missing Add-on API key');
+    }
+
     // 1. Secret Password Check karein
-    if (apiKey !== process.env.ADDON_SECRET_KEY) {
+    if (normalizedApiKey !== normalizedSecret) {
+      this.logger.warn('Invalid x-api-key provided to /deals/addon');
       throw new UnauthorizedException('Invalid Add-on Password!');
     }
     

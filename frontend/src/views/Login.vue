@@ -9,7 +9,7 @@ const handleLoginSuccess = async (response) => {
   
   try {
     // 1. Backend ko bhejo verify karne ke liye
-    const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/auth/google-login`, {
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/auth/google-login`, {
       token: credential
     }, {
       withCredentials: true,
