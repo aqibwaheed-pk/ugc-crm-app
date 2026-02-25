@@ -1,20 +1,46 @@
 /**
  * SETUP FUNCTION - Run this once to set properties securely
  * Go to Extensions > Apps Script > Run setupProperties
- * Then paste your secrets in the logs
+ * Then run setAddonProperties('https://your-domain/deals/addon', 'your-secret') in editor
  */
 function setupProperties() {
+  Logger.log("ℹ️ No secrets are stored in source code. Run setAddonProperties(backendUrl, addonSecret) manually.");
+}
+
+/**
+ * Securely set runtime properties without hardcoding secrets in source code.
+ */
+function setAddonProperties(backendUrl, addonSecret) {
+  var normalizedUrl = (backendUrl || '').trim();
+  var normalizedSecret = (addonSecret || '').trim();
+
+  if (!isHttpsUrl(normalizedUrl)) {
+    throw new Error('BACKEND_URL must be an HTTPS URL');
+  }
+
+  if (normalizedSecret.length < 32) {
+    throw new Error('ADDON_SECRET_KEY must be at least 32 characters');
+  }
+
   var props = PropertiesService.getScriptProperties();
-  
-  // Get these from environment/deployment and set them here
-  // DO NOT hardcode these values after first setup
-  var backendUrl = 'https://api.yourdomain.com'; // Change to your production URL
-  var addonSecret = 'change-this-to-strong-random-secret'; // Change this
-  
-  props.setProperty('BACKEND_URL', backendUrl);
-  props.setProperty('ADDON_SECRET_KEY', addonSecret);
-  
+  props.setProperty('BACKEND_URL', normalizedUrl);
+  props.setProperty('ADDON_SECRET_KEY', normalizedSecret);
+
   Logger.log('✅ Properties set successfully');
+}
+
+/**
+ * Rotate add-on key in Apps Script after backend cutover.
+ */
+function rotateAddonSecret(newAddonSecret) {
+  var normalizedSecret = (newAddonSecret || '').trim();
+  if (normalizedSecret.length < 32) {
+    throw new Error('New ADDON_SECRET_KEY must be at least 32 characters');
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('ADDON_SECRET_KEY', normalizedSecret);
+  Logger.log('✅ Add-on secret rotated in Script Properties');
 }
 
 /**
@@ -85,6 +111,24 @@ function sanitizeInput(text) {
   return text.substring(0, 5000);
 }
 
+function isHttpsUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  return /^https:\/\//i.test(url.trim());
+}
+
+function buildAddonSignature(payload, addonSecret, timestamp) {
+  var canonical = JSON.stringify({
+    subject: payload.subject || '',
+    body: payload.body || '',
+    sender: payload.sender || '',
+    userEmail: payload.userEmail || '',
+    timestamp: String(timestamp || '')
+  });
+
+  var bytes = Utilities.computeHmacSha256Signature(canonical, addonSecret);
+  return Utilities.base64Encode(bytes);
+}
+
 /**
  * 2. ACTION FUNCTION (BACKEND CONNECT)
  */
@@ -122,6 +166,13 @@ function createDeal(e) {
         .build();
     }
 
+    if (!isHttpsUrl(backendUrl)) {
+      Logger.log("❌ BACKEND_URL must use HTTPS");
+      return CardService.newActionResponseBuilder()
+        .setNotification(CardService.newNotification().setText("❌ Invalid backend configuration. Contact admin."))
+        .build();
+    }
+
     // --- 4. Payload Tayyar karna ---
     var payload = {
       subject: subject,
@@ -129,15 +180,21 @@ function createDeal(e) {
       sender: sender,
       userEmail: userEmail
     };
+
+    var timestamp = String(Date.now());
+    var signature = buildAddonSignature(payload, addonSecret, timestamp);
    
-    var url = backendUrl + "/deals/addon";
+    var url = backendUrl;
     
     var options = {
       method: "post",
       contentType: "application/json",
       payload: JSON.stringify(payload),
       headers: {
-        'x-api-key': addonSecret
+              'x-api-key': addonSecret,
+              'x-addon-timestamp': timestamp,
+              'x-addon-signature': signature,
+              'ngrok-skip-browser-warning': 'true' // Yeh line add karni zaroori hai
       },
       muteHttpExceptions: true,
       // Ensure HTTPS only
@@ -146,7 +203,6 @@ function createDeal(e) {
      
     var response = UrlFetchApp.fetch(url, options);
     var responseCode = response.getResponseCode();
-    var responseBody = response.getContentText();
     
     Logger.log("Response Code: " + responseCode);
     
@@ -156,7 +212,7 @@ function createDeal(e) {
         .setNotification(CardService.newNotification().setText("✅ Deal Saved Successfully!"))
         .build();
     } else {
-       Logger.log("❌ Backend Error: " + responseCode + " - " + responseBody);
+       Logger.log("❌ Backend Error: " + responseCode);
        return CardService.newActionResponseBuilder()
         .setNotification(CardService.newNotification().setText("❌ Failed to save deal. Please try again."))
         .build();

@@ -31,6 +31,26 @@
 $ npm install
 ```
 
+## Add-on security configuration
+
+Required environment variables for Gmail Add-on requests:
+
+- `ADDON_SECRET_KEY` (active secret, required)
+- `ADDON_SECRET_KEY_PREVIOUS` (previous secret, optional, used only during rotation)
+
+### Safe key rotation (no downtime)
+
+1. Generate a new strong secret (at least 32 characters).
+2. Update backend environment:
+  - Set `ADDON_SECRET_KEY` to the new secret.
+  - Set `ADDON_SECRET_KEY_PREVIOUS` to the old secret.
+3. Deploy backend.
+4. Update Apps Script secret:
+  - Run `setAddonProperties('https://your-domain/deals/addon', 'NEW_SECRET')`.
+  - If URL is unchanged, you can run `rotateAddonSecret('NEW_SECRET')`.
+5. Confirm new requests are succeeding.
+6. Remove `ADDON_SECRET_KEY_PREVIOUS` from backend environment and redeploy.
+
 ## Compile and run the project
 
 ```bash

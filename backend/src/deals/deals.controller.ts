@@ -5,10 +5,12 @@ import { ConfigService } from '@nestjs/config';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { CreateAddonDealDto } from './dto/create-addon-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 @Controller('deals')
 export class DealsController {
   private readonly logger = new Logger(DealsController.name);
+  private static readonly ADDON_TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000;
 
   constructor(
     private readonly dealsService: DealsService,
@@ -19,10 +21,18 @@ export class DealsController {
   // 🟢 NAYA RASTA: SIRF GMAIL ADD-ON KE LIYE (WITH API KEY)
   // ==========================================
   @Post('addon')
-  async createFromAddon(@Headers('x-api-key') apiKey: string, @Body() body: CreateAddonDealDto) {
+  async createFromAddon(
+    @Headers('x-api-key') apiKey: string,
+    @Headers('x-addon-timestamp') addonTimestamp: string,
+    @Headers('x-addon-signature') addonSignature: string,
+    @Body() body: CreateAddonDealDto,
+  ) {
     const configuredAddonSecret = this.configService.get<string>('ADDON_SECRET_KEY');
+    const configuredPreviousAddonSecret = this.configService.get<string>('ADDON_SECRET_KEY_PREVIOUS');
     const normalizedApiKey = (apiKey || '').trim();
     const normalizedSecret = (configuredAddonSecret || '').trim();
+    const normalizedPreviousSecret = (configuredPreviousAddonSecret || '').trim();
+    const acceptedSecrets = [normalizedSecret, normalizedPreviousSecret].filter(Boolean);
 
     if (!normalizedSecret) {
       this.logger.error('ADDON_SECRET_KEY is not configured');
@@ -34,10 +44,55 @@ export class DealsController {
       throw new UnauthorizedException('Missing Add-on API key');
     }
 
+    const matchedApiSecret = acceptedSecrets.find((secret) => secret === normalizedApiKey);
+
     // 1. Secret Password Check karein
-    if (normalizedApiKey !== normalizedSecret) {
+    if (!matchedApiSecret) {
       this.logger.warn('Invalid x-api-key provided to /deals/addon');
       throw new UnauthorizedException('Invalid Add-on Password!');
+    }
+
+    const normalizedTimestamp = (addonTimestamp || '').trim();
+    const normalizedSignature = (addonSignature || '').trim();
+
+    if (!normalizedTimestamp || !normalizedSignature) {
+      this.logger.warn('Missing signed headers in /deals/addon request');
+      throw new UnauthorizedException('Missing signed request headers');
+    }
+
+    const timestampMs = Number(normalizedTimestamp);
+    if (!Number.isFinite(timestampMs)) {
+      this.logger.warn('Invalid x-addon-timestamp format in /deals/addon request');
+      throw new UnauthorizedException('Invalid request timestamp');
+    }
+
+    const now = Date.now();
+    if (Math.abs(now - timestampMs) > DealsController.ADDON_TIMESTAMP_TOLERANCE_MS) {
+      this.logger.warn('Stale addon request blocked by timestamp window');
+      throw new UnauthorizedException('Request expired');
+    }
+
+    const canonicalPayload = JSON.stringify({
+      subject: body.subject || '',
+      body: body.body || '',
+      sender: body.sender || '',
+      userEmail: body.userEmail || '',
+      timestamp: normalizedTimestamp,
+    });
+
+    const received = Buffer.from(normalizedSignature, 'utf8');
+
+    const signatureValid = acceptedSecrets.some((secret) => {
+      const expectedSignature = createHmac('sha256', secret)
+        .update(canonicalPayload)
+        .digest('base64');
+      const expected = Buffer.from(expectedSignature, 'utf8');
+      return received.length === expected.length && timingSafeEqual(received, expected);
+    });
+
+    if (!signatureValid) {
+      this.logger.warn('Invalid addon signature provided to /deals/addon');
+      throw new UnauthorizedException('Invalid request signature');
     }
     
     // 2. Check karein ke Add-on ne email bheji hai ya nahi
