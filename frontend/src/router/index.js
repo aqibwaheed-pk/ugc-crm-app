@@ -1,6 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from '../views/Login.vue'
-import App from '../App.vue'
+import AppLayout from '../views/AppLayout.vue'
+import Dashboard from '../views/Dashboard.vue'
+import Profile from '../views/Profile.vue'
+import Settings from '../views/Settings.vue'
+import Billing from '../views/Billing.vue'
 
 const routes = [
   {
@@ -10,14 +14,39 @@ const routes = [
     meta: { requiresAuth: false }
   },
   {
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: App,
-    meta: { requiresAuth: true }
+    path: '/',
+    component: AppLayout,
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        redirect: '/dashboard',
+      },
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: Dashboard,
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: Profile,
+      },
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: Settings,
+      },
+      {
+        path: 'billing',
+        name: 'Billing',
+        component: Billing,
+      },
+    ],
   },
   {
-    path: '/',
-    redirect: '/dashboard'
+    path: '/:pathMatch(.*)*',
+    redirect: '/dashboard',
   }
 ]
 

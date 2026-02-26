@@ -1,8 +1,10 @@
 <script setup>
 import { GoogleSignInButton } from "vue3-google-signin";
 import axios from 'axios';
+import { useRouter } from 'vue-router';
 
 const emit = defineEmits(['login-success']);
+const router = useRouter();
 
 const handleLoginSuccess = async (response) => {
   const { credential } = response; // Ye Google ka Token hai
@@ -23,6 +25,7 @@ const handleLoginSuccess = async (response) => {
     
     // 3. App ko batao ke login ho gaya
     emit('login-success', res.data.user);
+    router.push('/dashboard');
 
   } catch (err) {
     console.error("Login Failed:", err);
