@@ -1,21 +1,16 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { SupabaseService } from '../database/supabase.service';
 
 @Injectable()
 export class DealsService {
-  private supabase: SupabaseClient;
-  private genAI: GoogleGenerativeAI;
-  private logger = new Logger('DealsService');
+  private readonly genAI: GoogleGenerativeAI;
+  private readonly logger = new Logger('DealsService');
 
-  constructor() {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-      throw new Error('Missing required SUPABASE environment variables');
-    }
+  constructor(private readonly supabaseService: SupabaseService) {
     if (!process.env.GEMINI_API_KEY) {
       throw new Error('Missing required GEMINI_API_KEY environment variable');
     }
-    this.supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   }
 
@@ -77,7 +72,7 @@ export class DealsService {
       aiData = { ...rawData };
     }
 
-    const { data, error } = await this.supabase
+    const { data, error } = await this.supabaseService
       .from('deals')
       .insert([{
         brand_name: aiData.brand_name || 'Unknown Brand',
@@ -99,7 +94,7 @@ export class DealsService {
 
   // FIND BY ID (for authorization checks)
   async findById(id: number) {
-    const { data, error } = await this.supabase
+    const { data, error } = await this.supabaseService
       .from('deals')
       .select('*')
       .eq('id', id)
@@ -116,7 +111,7 @@ export class DealsService {
 
   async findAll(userEmail: string) {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await this.supabaseService
         .from('deals')
         .select('*')
         .eq('user_email', userEmail)
@@ -136,7 +131,7 @@ export class DealsService {
 
   async update(id: number, updateData: any, userEmail: string) {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await this.supabaseService
         .from('deals')
         .update(updateData)
         .eq('id', id)
@@ -156,7 +151,7 @@ export class DealsService {
 
   async remove(id: number, userEmail: string) {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await this.supabaseService
         .from('deals')
         .delete()
         .eq('id', id)

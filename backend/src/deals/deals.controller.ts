@@ -6,6 +6,7 @@ import { CreateDealDto } from './dto/create-deal.dto';
 import { CreateAddonDealDto } from './dto/create-addon-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { UsersService } from '../users/users.service';
 
 @Controller('deals')
 export class DealsController {
@@ -15,6 +16,7 @@ export class DealsController {
   constructor(
     private readonly dealsService: DealsService,
     private readonly configService: ConfigService,
+    private readonly usersService: UsersService,
   ) {}
 
   // ==========================================
@@ -100,6 +102,11 @@ export class DealsController {
       throw new BadRequestException('User email is missing!');
     }
     
+    const isRegistered = await this.usersService.ensureRegistered(body.userEmail);
+    if (!isRegistered) {
+      throw new ForbiddenException('First sign up on web app');
+    }
+
     // 3. Data save karein
     return this.dealsService.create(body, body.userEmail);
   }

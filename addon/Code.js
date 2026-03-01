@@ -203,20 +203,26 @@ function createDeal(e) {
      
     var response = UrlFetchApp.fetch(url, options);
     var responseCode = response.getResponseCode();
+    var responseText = response.getContentText() || '';
     
     Logger.log("Response Code: " + responseCode);
     
-    // Do NOT expose detailed error messages to user
     if (responseCode === 200 || responseCode === 201) {
        return CardService.newActionResponseBuilder()
         .setNotification(CardService.newNotification().setText("✅ Deal Saved Successfully!"))
         .build();
-    } else {
-       Logger.log("❌ Backend Error: " + responseCode);
-       return CardService.newActionResponseBuilder()
-        .setNotification(CardService.newNotification().setText("❌ Failed to save deal. Please try again."))
+    }
+
+    if (responseCode === 403 && responseText.indexOf('First sign up on web app') !== -1) {
+      return CardService.newActionResponseBuilder()
+        .setNotification(CardService.newNotification().setText("❌ First sign up on web app"))
         .build();
     }
+
+    Logger.log("❌ Backend Error: " + responseCode + " Body: " + responseText);
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification().setText("❌ Failed to save deal. Please try again."))
+      .build();
 
   } catch (error) {
     Logger.log("❌ Exception: " + error.message);
