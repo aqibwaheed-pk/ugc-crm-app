@@ -15,7 +15,7 @@
     "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/receipt_black_24dp.png",
     "contextualTriggers": [{
       "unconditional": {},
-      "onTriggerFunction": "buildAddOn"
+      "onTriggerFunction": "onGmailMessageOpen"
     }],
     "primaryColor": "#0F172A",
     "secondaryColor": "#4F46E5"

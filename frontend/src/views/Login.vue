@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { GoogleSignInButton } from 'vue3-google-signin';
 import axios from 'axios';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 
 const emit = defineEmits(['login-success']);
 const router = useRouter();
+const route = useRoute(); // Needed to read URL parameters for the Add-on
 
 const authMode = ref('signin');
 const loading = ref(false);
@@ -24,8 +25,22 @@ const signInForm = ref({
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
+// Computed property to detect if we are in the Gmail Add-on flow
+const isAddonFlow = computed(() => {
+  return !!route.query.state && !!route.query.redirect_uri;
+});
+
 const saveTokenAndRedirect = (data) => {
   const myAppToken = data?.accessToken;
+  
+  if (isAddonFlow.value) {
+    // 🚀 ADD-ON FLOW: Redirect back to Google Apps Script with the token
+    const callbackUrl = `${route.query.redirect_uri}?token=${myAppToken}&state=${route.query.state}`;
+    window.location.href = callbackUrl;
+    return;
+  }
+
+  // 💻 NORMAL WEB APP FLOW: Save to local storage and go to dashboard
   if (myAppToken) {
     localStorage.setItem('sponso_token', myAppToken);
   }
@@ -52,8 +67,21 @@ const submitSignIn = async () => {
   errorMessage.value = '';
 
   try {
-    const res = await axios.post(`${apiUrl}/auth/signin`, signInForm.value);
-    saveTokenAndRedirect(res.data);
+    // Uses your existing normal signin route if standard web app
+    // OR uses your new addon-login route if coming from Gmail
+    const endpoint = isAddonFlow.value ? '/auth/addon-login' : '/auth/signin';
+    const payload = isAddonFlow.value 
+      ? { ...signInForm.value, state: route.query.state, redirect_uri: route.query.redirect_uri }
+      : signInForm.value;
+
+    const res = await axios.post(`${apiUrl}${endpoint}`, payload);
+    
+    if (isAddonFlow.value) {
+      // The backend /auth/addon-login endpoint already returns the formatted Google URL
+      window.location.href = res.data.redirectUrl;
+    } else {
+      saveTokenAndRedirect(res.data);
+    }
   } catch (err) {
     errorMessage.value = err?.response?.data?.message || 'Sign in failed. Please try again.';
   } finally {

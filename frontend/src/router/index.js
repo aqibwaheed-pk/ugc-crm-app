@@ -14,6 +14,12 @@ const routes = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/addon-login',
+    name: 'AddonLogin',
+    component: Login,
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/',
     component: AppLayout,
     meta: { requiresAuth: true },

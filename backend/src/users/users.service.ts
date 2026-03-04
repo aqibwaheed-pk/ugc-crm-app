@@ -5,7 +5,7 @@ import { SupabaseService } from '../database/supabase.service';
 
 const scrypt = promisify(scryptCallback);
 
-type UserRecord = {
+export type UserRecord = {
   id?: string;
   name?: string;
   email: string;
@@ -44,6 +44,7 @@ export class UsersService {
     return timingSafeEqual(derived, stored);
   }
 
+  // NOTE: This acts as your findOneByEmail from the previous example
   async findByEmail(email: string): Promise<UserRecord | null> {
     const normalizedEmail = this.normalizeEmail(email);
 
@@ -106,6 +107,52 @@ export class UsersService {
     const valid = await this.verifyPassword(password, user.password_hash);
     if (!valid) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    return user;
+  }
+
+  // =========================================================================
+  // NEW LOGIC: Account Linking adapted for your Supabase schema
+  // =========================================================================
+  async findOrCreateLinkedAccount(email: string, provider: string, providerId: string): Promise<UserRecord> {
+    const normalizedEmail = this.normalizeEmail(email);
+    let user = await this.findByEmail(normalizedEmail);
+    
+    // 1. If user doesn't exist at all, create them with the provider info
+    if (!user) {
+      const { data, error } = await this.supabaseService
+        .from('users')
+        .insert([
+          {
+            email: normalizedEmail,
+            auth_provider: provider, // e.g., 'google'
+            google_id: provider === 'google' ? providerId : null,
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select('id, name, email, auth_provider, google_id')
+        .single();
+
+      if (error || !data) {
+        throw new InternalServerErrorException('Failed to create linked account user');
+      }
+      return data;
+    }
+
+    // 2. If user exists, check if we need to link the Google ID to their account
+    if (provider === 'google' && user.google_id !== providerId) {
+      const { data, error } = await this.supabaseService
+        .from('users')
+        .update({ google_id: providerId })
+        .eq('id', user.id)
+        .select('id, name, email, auth_provider, google_id')
+        .single();
+
+      if (error || !data) {
+        throw new InternalServerErrorException('Failed to link provider to existing account');
+      }
+      user = data;
     }
 
     return user;

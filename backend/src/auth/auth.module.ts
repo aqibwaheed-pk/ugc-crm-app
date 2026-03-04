@@ -19,7 +19,9 @@ import { UsersModule } from '../users/users.module';
         secret:
           configService.get<string>('JWT_SECRET') ||
           'fallback-secret-change-immediately',
-        signOptions: { expiresIn: '7d' },
+        // Optional: You might want to change this to '30d' (30 days). 
+        // Gmail Add-on users find it frustrating if they have to log in every 7 days.
+        signOptions: { expiresIn: '7d' }, 
       }),
     }),
   ],

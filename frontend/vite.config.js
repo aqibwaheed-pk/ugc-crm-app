@@ -3,12 +3,14 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
+import basicSsl from '@vitejs/plugin-basic-ssl' // Add this
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
     vueDevTools(),
+    basicSsl() // Add this
   ],
   resolve: {
     alias: {
@@ -25,6 +27,10 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
       // Updated CSP to allow Google styles, Google iframes, and local backend connections
       'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: https:; connect-src 'self' https://api.yourdomain.com http://localhost:3000; frame-src 'self' https://accounts.google.com/;",
-    }
-  }
-})
+    },
+    port: 5173,
+    // Force server to use https
+    https: true,
+  },
+  
+})  
