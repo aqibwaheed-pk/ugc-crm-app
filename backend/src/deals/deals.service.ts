@@ -23,6 +23,7 @@ export class DealsService {
 
   // CREATE DEAL
   async create(rawData: any, userEmail: string) {
+    console.log('Received raw data for deal creation:', rawData);
     let aiData = { brand_name: 'Manual Deal', amount: 0, deadline: null, description: '' };
 
     // Agar Gmail se data aaya hai to AI use karo

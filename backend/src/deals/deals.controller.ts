@@ -23,93 +23,69 @@ export class DealsController {
   // 🟢 NAYA RASTA: SIRF GMAIL ADD-ON KE LIYE (WITH API KEY)
   // ==========================================
   @Post('addon')
-  async createFromAddon(
-    @Headers('x-api-key') apiKey: string,
-    @Headers('x-addon-timestamp') addonTimestamp: string,
-    @Headers('x-addon-signature') addonSignature: string,
-    @Body() body: CreateAddonDealDto,
-  ) {
-    const configuredAddonSecret = this.configService.get<string>('ADDON_SECRET_KEY');
-    const configuredPreviousAddonSecret = this.configService.get<string>('ADDON_SECRET_KEY_PREVIOUS');
-    const normalizedApiKey = (apiKey || '').trim();
-    const normalizedSecret = (configuredAddonSecret || '').trim();
-    const normalizedPreviousSecret = (configuredPreviousAddonSecret || '').trim();
-    const acceptedSecrets = [normalizedSecret, normalizedPreviousSecret].filter(Boolean);
+  @UseGuards(AuthGuard('jwt')) 
+    async createFromAddon(
+      @Request() req: any, // 👈 Inject the request to get the JWT user
+      @Headers('x-api-key') apiKey: string,
+      @Headers('x-addon-timestamp') addonTimestamp: string,
+      @Headers('x-addon-signature') addonSignature: string,
+      @Body() body: CreateAddonDealDto,
+    ) {
+      // ... [Keep your secret and timestamp validation logic exactly as is] ...
 
-    if (!normalizedSecret) {
-      this.logger.error('ADDON_SECRET_KEY is not configured');
-      throw new InternalServerErrorException('Add-on secret is not configured');
+      // Validate timestamp
+      const timestampMs = parseInt(addonTimestamp, 10);
+      const now = Date.now();
+      if (Math.abs(now - timestampMs) > DealsController.ADDON_TIMESTAMP_TOLERANCE_MS) {
+        throw new BadRequestException('Request timestamp expired or invalid');
+      }
+
+      // 1. UPDATE CANONICAL PAYLOAD: Must exactly match Apps Script JSON.stringify
+      const canonicalPayload = JSON.stringify({
+        subject: body.subject || '',
+        body: body.body || '',
+        sender: body.sender || '',
+        // userEmail removed!
+        timestamp: String(timestampMs), 
+      });
+
+      const normalizedSignature = addonSignature?.trim() || '';
+      const received = Buffer.from(normalizedSignature, 'utf8');
+
+      const acceptedSecrets = [this.configService.get<string>('GMAIL_ADDON_SECRET')].filter(Boolean);
+      if (acceptedSecrets.length === 0) {
+        throw new InternalServerErrorException('GMAIL_ADDON_SECRET is not configured');
+      }
+
+      const signatureValid = acceptedSecrets.some((secret) => {
+        if (!secret) return false;
+        const expectedSignature = createHmac('sha256', secret)
+          .update(canonicalPayload)
+          .digest('base64');
+        const expected = Buffer.from(expectedSignature, 'utf8');
+        return received.length === expected.length && timingSafeEqual(received, expected);
+      });
+
+      if (!signatureValid) {
+        this.logger.warn('Invalid addon signature provided to /deals/addon');
+        throw new UnauthorizedException('Invalid request signature');
+      }
+      
+      // 2. Extract email from JWT instead of Body
+      const userEmail = req.user?.email; // 👈 Adjust this based on your JWT payload structure
+      
+      if (!userEmail) {
+        throw new UnauthorizedException('User email could not be extracted from token!');
+      }
+      
+      const isRegistered = await this.usersService.ensureRegistered(userEmail);
+      if (!isRegistered) {
+        throw new ForbiddenException('First sign up on web app');
+      }
+
+      // 3. Pass the extracted email to your service
+      return this.dealsService.create(body, userEmail);
     }
-
-    if (!normalizedApiKey) {
-      this.logger.warn('Missing x-api-key header in /deals/addon request');
-      throw new UnauthorizedException('Missing Add-on API key');
-    }
-
-    const matchedApiSecret = acceptedSecrets.find((secret) => secret === normalizedApiKey);
-
-    // 1. Secret Password Check karein
-    if (!matchedApiSecret) {
-      this.logger.warn('Invalid x-api-key provided to /deals/addon');
-      throw new UnauthorizedException('Invalid Add-on Password!');
-    }
-
-    const normalizedTimestamp = (addonTimestamp || '').trim();
-    const normalizedSignature = (addonSignature || '').trim();
-
-    if (!normalizedTimestamp || !normalizedSignature) {
-      this.logger.warn('Missing signed headers in /deals/addon request');
-      throw new UnauthorizedException('Missing signed request headers');
-    }
-
-    const timestampMs = Number(normalizedTimestamp);
-    if (!Number.isFinite(timestampMs)) {
-      this.logger.warn('Invalid x-addon-timestamp format in /deals/addon request');
-      throw new UnauthorizedException('Invalid request timestamp');
-    }
-
-    const now = Date.now();
-    if (Math.abs(now - timestampMs) > DealsController.ADDON_TIMESTAMP_TOLERANCE_MS) {
-      this.logger.warn('Stale addon request blocked by timestamp window');
-      throw new UnauthorizedException('Request expired');
-    }
-
-    const canonicalPayload = JSON.stringify({
-      subject: body.subject || '',
-      body: body.body || '',
-      sender: body.sender || '',
-      userEmail: body.userEmail || '',
-      timestamp: normalizedTimestamp,
-    });
-
-    const received = Buffer.from(normalizedSignature, 'utf8');
-
-    const signatureValid = acceptedSecrets.some((secret) => {
-      const expectedSignature = createHmac('sha256', secret)
-        .update(canonicalPayload)
-        .digest('base64');
-      const expected = Buffer.from(expectedSignature, 'utf8');
-      return received.length === expected.length && timingSafeEqual(received, expected);
-    });
-
-    if (!signatureValid) {
-      this.logger.warn('Invalid addon signature provided to /deals/addon');
-      throw new UnauthorizedException('Invalid request signature');
-    }
-    
-    // 2. Check karein ke Add-on ne email bheji hai ya nahi
-    if (!body.userEmail) {
-      throw new BadRequestException('User email is missing!');
-    }
-    
-    const isRegistered = await this.usersService.ensureRegistered(body.userEmail);
-    if (!isRegistered) {
-      throw new ForbiddenException('First sign up on web app');
-    }
-
-    // 3. Data save karein
-    return this.dealsService.create(body, body.userEmail);
-  }
 
   // ==========================================
   // 🔒 PURANAY RASTAY: WEB APP KE LIYE (JWT PROTECTED)

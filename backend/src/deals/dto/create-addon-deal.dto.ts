@@ -15,7 +15,5 @@ export class CreateAddonDealDto {
   @MinLength(1, { message: 'Sender cannot be empty' })
   @MaxLength(500, { message: 'Sender cannot exceed 500 characters' })
   sender: string;
-
-  @IsEmail({}, { message: 'User email must be valid' })
-  userEmail: string;
+  
 }
