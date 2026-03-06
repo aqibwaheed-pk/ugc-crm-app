@@ -1,12 +1,8 @@
 /**
- * SETUP FUNCTION - Run this once to set properties securely
- * Go to Extensions > Apps Script > Run setupProperties
- * Then run setAddonProperties('https://your-domain/deals/addon', 'your-secret') in editor
+ * ADMIN SETUP FUNCTION
+ * Run this once from the Apps Script editor to set properties securely.
+ * Example: setAddonProperties('https://api.yourdomain.com/deals', 'your-32-char-secret-key')
  */
-function setupProperties() {
-  Logger.log("ℹ️ No secrets are stored in source code. Run setAddonProperties(backendUrl, addonSecret) manually.");
-}
-
 function setAddonProperties(backendUrl, addonSecret) {
   var normalizedUrl = (backendUrl || '').trim();
   var normalizedSecret = (addonSecret || '').trim();
@@ -23,23 +19,19 @@ function setAddonProperties(backendUrl, addonSecret) {
   props.setProperty('BACKEND_URL', normalizedUrl);
   props.setProperty('ADDON_SECRET_KEY', normalizedSecret);
 
-  Logger.log('✅ Properties set successfully');
+  Logger.log('✅ Production Properties set successfully');
 }
 
 /**
  * 1. PRIMARY TRIGGER FUNCTION
- * Yeh tab chalega jab user email open karega. 
- * Checks for JWT token first.
  */
 function onGmailMessageOpen(e) {
   var token = PropertiesService.getUserProperties().getProperty('API_TOKEN');
   
   if (!token) {
-    // No token found: Show the login screen
     return buildLoginCard();
   }
   
-  // Token exists: Show the actual app interface
   return buildMainCard(e);
 }
 
@@ -47,22 +39,19 @@ function onGmailMessageOpen(e) {
  * 2. AUTHENTICATION UI & LOGIC
  */
 function buildLoginCard() {
-  // 1. Create a state token mapped to our 'authCallback' function
   var stateToken = ScriptApp.newStateToken()
       .withMethod('authCallback')
-      .withTimeout(3600) // Token is valid for 1 hour
+      .withTimeout(3600)
       .createToken();
       
-  // 2. Build the URL to your frontend login page
   var SCRIPT_ID = ScriptApp.getScriptId();
   var redirectUri = encodeURIComponent("https://script.google.com/macros/d/" + SCRIPT_ID + "/usercallback");
   
-  // ⚠️ CHANGE THIS TO YOUR ACTUAL FRONTEND URL
-  var loginUrl = "http://localhost:5173/addon-login" 
-               + "?state=" + stateToken
-               + "&redirect_uri=" + redirectUri;
+  // ⚠️ CHANGE THIS TO YOUR ACTUAL LIVE FRONTEND URL
+  var loginUrl = "https://your-production-domain.com/addon-login" 
+                 + "?state=" + stateToken
+                 + "&redirect_uri=" + redirectUri;
 
-  // 3. Create a button that opens the login URL in a popup overlay
   var openLink = CardService.newOpenLink()
       .setUrl(loginUrl)
       .setOpenAs(CardService.OpenAs.OVERLAY)
@@ -73,7 +62,7 @@ function buildLoginCard() {
       .setOpenLink(openLink);
 
   var section = CardService.newCardSection()
-      .addWidget(CardService.newTextParagraph().setText("Please log in with your SponsoAI account to continue. Works with any email provider."))
+      .addWidget(CardService.newTextParagraph().setText("Please log in with your SponsoAI account to continue."))
       .addWidget(loginButton);
 
   return CardService.newCardBuilder()
@@ -83,7 +72,6 @@ function buildLoginCard() {
 }
 
 function authCallback(request) {
-  // Extract token from NestJS and save it securely
   var token = request.parameter.token;
   PropertiesService.getUserProperties().setProperty('API_TOKEN', token);
   
@@ -104,10 +92,9 @@ function logoutUser() {
 }
 
 /**
- * 3. MAIN APP UI (Formerly buildAddOn)
+ * 3. MAIN APP UI
  */
 function buildMainCard(e) {
-  // --- Data Uthana ---
   var accessToken = e.messageMetadata.accessToken;
   var messageId = e.messageMetadata.messageId;
   
@@ -115,12 +102,9 @@ function buildMainCard(e) {
   var message = GmailApp.getMessageById(messageId);
   var subject = message.getSubject();
   var sender = message.getFrom();
-  
   var bodyPreview = message.getPlainBody().substring(0, 100) + "..."; 
 
-  // --- UI (Card) Banana ---
   var card = CardService.newCardBuilder();
-
   var header = CardService.newCardHeader()
     .setTitle("SponsoAI")
     .setSubtitle("Deal Details");
@@ -130,7 +114,6 @@ function buildMainCard(e) {
     .addWidget(CardService.newTextParagraph().setText("<b>Subject:</b> " + sanitizeOutput(subject)))
     .addWidget(CardService.newTextParagraph().setText("<b>Preview:</b> " + sanitizeOutput(bodyPreview)));
 
-  // Buttons
   var createDealBtn = CardService.newTextButton()
     .setText("Create Deal with AI 🚀")
     .setOnClickAction(CardService.newAction().setFunctionName("createDeal"));
@@ -141,7 +124,7 @@ function buildMainCard(e) {
     
   section.addWidget(CardService.newButtonSet()
     .addButton(createDealBtn)
-    .addButton(logoutBtn) // Added logout button for user convenience
+    .addButton(logoutBtn)
   );
 
   card.setHeader(header);
@@ -155,7 +138,6 @@ function buildMainCard(e) {
  */
 function createDeal(e) {
   try {
-    // --- 1. Verify User Session ---
     var token = PropertiesService.getUserProperties().getProperty('API_TOKEN');
     if (!token) {
       return CardService.newActionResponseBuilder()
@@ -163,7 +145,6 @@ function createDeal(e) {
         .build();
     }
 
-    // --- 2. Email Content Uthana ---
     var accessToken = e.messageMetadata.accessToken;
     var messageId = e.messageMetadata.messageId;
     GmailApp.setCurrentMessageAccessToken(accessToken);
@@ -173,10 +154,6 @@ function createDeal(e) {
     var body = sanitizeInput(message.getPlainBody());
     var sender = sanitizeInput(message.getFrom());
 
-    // REMOVED: Session.getEffectiveUser().getEmail() 
-    // We no longer rely on Gmail address. The JWT token represents the user!
-
-    // --- 3. Get secrets from PropertiesService ---
     var props = PropertiesService.getScriptProperties();
     var backendUrl = props.getProperty('BACKEND_URL');
     var addonSecret = props.getProperty('ADDON_SECRET_KEY');
@@ -187,12 +164,10 @@ function createDeal(e) {
         .build();
     }
 
-    // --- 4. Payload Tayyar karna ---
     var payload = {
       subject: subject,
       body: body,
       sender: sender
-      // userEmail is removed. Your NestJS backend should extract the user's ID/Email from the JWT token via req.user!
     };
 
     var timestamp = String(Date.now());
@@ -203,11 +178,10 @@ function createDeal(e) {
       contentType: "application/json",
       payload: JSON.stringify(payload),
       headers: {
-              'Authorization': 'Bearer ' + token, // ✅ NEW: Identifies the SaaS user securely
-              'x-api-key': addonSecret,           // Kept for your backend server-to-server validation
-              'x-addon-timestamp': timestamp,
-              'x-addon-signature': signature,
-              'ngrok-skip-browser-warning': 'true'
+        'Authorization': 'Bearer ' + token,
+        'x-api-key': addonSecret,
+        'x-addon-timestamp': timestamp,
+        'x-addon-signature': signature
       },
       muteHttpExceptions: true,
       verifySSLCert: true
@@ -216,7 +190,6 @@ function createDeal(e) {
     var response = UrlFetchApp.fetch(backendUrl, options);
     var responseCode = response.getResponseCode();
     
-    // Handle Expired or Invalid Token
     if (responseCode === 401) {
        PropertiesService.getUserProperties().deleteProperty('API_TOKEN');
        return CardService.newActionResponseBuilder()
@@ -244,7 +217,7 @@ function createDeal(e) {
 }
 
 /**
- * UTILITY FUNCTIONS
+ * 5. UTILITY FUNCTIONS
  */
 function sanitizeOutput(text) {
   if (!text) return '';
@@ -270,7 +243,6 @@ function buildAddonSignature(payload, addonSecret, timestamp) {
     subject: payload.subject || '',
     body: payload.body || '',
     sender: payload.sender || '',
-    // Removed userEmail from signature calculation to match the payload
     timestamp: String(timestamp || '')
   });
 
